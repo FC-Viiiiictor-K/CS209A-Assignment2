@@ -12,40 +12,72 @@ import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.Socket;
 import java.net.URL;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.ResourceBundle;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class Controller implements Initializable {
-
     @FXML
     ListView<Message> chatContentList;
 
-    String username;
+    String userName;
+    private final int port=1453;
+    private Socket socket;
+    private Scanner sc;
+    private PrintWriter pw;
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
+        try{
+            socket=new Socket("localhost",port);
+            sc=new Scanner(socket.getInputStream());
+            pw=new PrintWriter(socket.getOutputStream());
 
-        Dialog<String> dialog = new TextInputDialog();
-        dialog.setTitle("Login");
-        dialog.setHeaderText(null);
-        dialog.setContentText("Username:");
+            boolean createdUser=false;
+            while(!createdUser){
+                Dialog<String> dialog = new TextInputDialog();
+                dialog.setTitle("Login");
+                dialog.setHeaderText(null);
+                dialog.setContentText("Username:");
 
-        Optional<String> input = dialog.showAndWait();
-        if (input.isPresent() && !input.get().isEmpty()) {
-            /*
-               TODO: Check if there is a user with the same name among the currently logged-in users,
-                     if so, ask the user to change the username
-             */
-            username = input.get();
-        } else {
-            System.out.println("Invalid username " + input + ", exiting");
-            Platform.exit();
+                Optional<String> input = dialog.showAndWait();
+                if(!input.isPresent()){
+                    Platform.exit();
+                    return;
+                }
+                if (!input.get().isEmpty()) {
+                    String tmpName = input.get();
+                    pw.println(tmpName);
+                    pw.flush();
+                    String result=sc.nextLine();
+                    if(result.equals("CREATE_USER_SUCCEEDED")){
+                        createdUser=true;
+                        userName=tmpName;
+                    }
+                    else{
+                        Alert invalidNameAlert=new Alert(Alert.AlertType.WARNING);
+                        invalidNameAlert.setTitle("Username Already Exists");
+                        invalidNameAlert.setHeaderText(null);
+                        invalidNameAlert.setContentText("User \""+tmpName+"\" is already online, please enter another username!");
+                        invalidNameAlert.showAndWait();
+                    }
+                } else {
+                    Alert invalidNameAlert=new Alert(Alert.AlertType.WARNING);
+                    invalidNameAlert.setTitle("Username Empty");
+                    invalidNameAlert.setHeaderText(null);
+                    invalidNameAlert.setContentText("Please enter your username!");
+                    invalidNameAlert.showAndWait();
+                }
+            }
+            chatContentList.setCellFactory(new MessageCellFactory());
         }
-
-        chatContentList.setCellFactory(new MessageCellFactory());
+        catch (IOException e){
+            Platform.exit();
+            e.printStackTrace();
+        }
     }
 
     @FXML
@@ -55,8 +87,17 @@ public class Controller implements Initializable {
         Stage stage = new Stage();
         ComboBox<String> userSel = new ComboBox<>();
 
-        // FIXME: get the user list from server, the current user's name should be filtered out
-        userSel.getItems().addAll("Item 1", "Item 2", "Item 3");
+        pw.println("GET_USER_LIST");
+        pw.flush();
+        int userCnt=Integer.parseInt(sc.nextLine());
+        System.out.println(userCnt);
+        while(userCnt-->0){
+            String tmp=sc.nextLine();
+            if(tmp.equals(userName)){
+                continue;
+            }
+            userSel.getItems().add(tmp);
+        }
 
         Button okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
@@ -126,7 +167,7 @@ public class Controller implements Initializable {
                     nameLabel.setWrapText(true);
                     nameLabel.setStyle("-fx-border-color: black; -fx-border-width: 1px;");
 
-                    if (username.equals(msg.getSentBy())) {
+                    if (userName.equals(msg.getSentBy())) {
                         wrapper.setAlignment(Pos.TOP_RIGHT);
                         wrapper.getChildren().addAll(msgLabel, nameLabel);
                         msgLabel.setPadding(new Insets(0, 20, 0, 0));

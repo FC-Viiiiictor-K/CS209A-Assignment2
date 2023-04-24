@@ -1,16 +1,18 @@
 package cn.edu.sustech.cs209.chatting.common;
 
+import java.util.ArrayList;
+
 public class Message {
 
     private Long timestamp;
 
     private String sentBy;
 
-    private String sendTo;
+    private Long sendTo;
 
     private String data;
 
-    public Message(Long timestamp, String sentBy, String sendTo, String data) {
+    public Message(Long timestamp, String sentBy, Long sendTo, String data) {
         this.timestamp = timestamp;
         this.sentBy = sentBy;
         this.sendTo = sendTo;
@@ -25,7 +27,7 @@ public class Message {
         return sentBy;
     }
 
-    public String getSendTo() {
+    public Long getSendTo() {
         return sendTo;
     }
 
