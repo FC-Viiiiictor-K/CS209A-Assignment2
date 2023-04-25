@@ -27,86 +27,86 @@ import java.util.*;
  * QUIT_CHAT chatId userName // userName quited a chat which the user is in
  */
 public class ServerController {
-    private static volatile ArrayList<ChatService> serviceList;
-    private static volatile ArrayList<Chatting> chattingList;
-    private static volatile Random random;
-    public ServerController(){
-        serviceList=new ArrayList<>();
-        chattingList =new ArrayList<>();
-        random=new Random();
+  private static volatile ArrayList<ChatService> serviceList;
+  private static volatile ArrayList<Chatting> chattingList;
+  private static volatile Random random;
+  public ServerController(){
+    serviceList=new ArrayList<>();
+    chattingList =new ArrayList<>();
+    random=new Random();
+  }
+  
+  public synchronized void addChatService(ChatService service){
+    serviceList.add(service);
+  }
+  
+  public synchronized void removeChatService(ChatService service){
+    serviceList.remove(service);
+    quitChat(service.getUserName());
+  }
+  
+  public void refreshOnlineCnt(){
+    for(ChatService service:serviceList){
+      service.setOnlineCnt(serviceList.size());
     }
-
-    public synchronized void addChatService(ChatService service){
-        serviceList.add(service);
-    }
-
-    public synchronized void removeChatService(ChatService service){
-        serviceList.remove(service);
-        quitChat(service.getUserName());
-    }
-
-    public void refreshOnlineCnt(){
-        for(ChatService service:serviceList){
-            service.setOnlineCnt(serviceList.size());
-        }
-    }
-
-    public synchronized boolean existsUser(String userName){
-        //System.out.println(serviceList.size());
-        for(ChatService service:serviceList){
-            //System.out.print(service.getUserName()+";");
-            if(service.getUserName().equals(userName)){
-                //System.out.println();
-                return true;
-            }
-        }
+  }
+  
+  public synchronized boolean existsUser(String userName){
+    //System.out.println(serviceList.size());
+    for(ChatService service:serviceList){
+      //System.out.print(service.getUserName()+";");
+      if(service.getUserName().equals(userName)){
         //System.out.println();
-        return false;
+        return true;
+      }
     }
-
-    public synchronized void createChat(TreeSet<String> users){
-        Chatting newChatting =new Chatting(random.nextLong(),users);
-        chattingList.add(newChatting);
+    //System.out.println();
+    return false;
+  }
+  
+  public synchronized void createChat(TreeSet<String> users){
+    Chatting newChatting =new Chatting(random.nextLong(),users);
+    chattingList.add(newChatting);
+    for(ChatService service:serviceList){
+      if(users.contains(service.getUserName())){
+        service.joinChat(newChatting);
+      }
+    }
+  }
+  
+  public Set<String> getUserList(){
+    Set<String> userList=new TreeSet<>();
+    for(ChatService service:serviceList){
+      userList.add(service.getUserName());
+    }
+    return userList;
+  }
+  
+  public void uploadMessage(Message message){
+    for(Chatting chatting : chattingList){
+      if(chatting.getChatId()==message.getSendTo()){
         for(ChatService service:serviceList){
-            if(users.contains(service.getUserName())){
-                service.joinChat(newChatting);
-            }
+          if(chatting.getUserList().contains(service.getUserName())){
+            service.downloadMessage(message);
+          }
         }
+        return;
+      }
     }
-
-    public Set<String> getUserList(){
-        Set<String> userList=new TreeSet<>();
+  }
+  
+  public synchronized void quitChat(String userName){
+    for(Chatting chatting : chattingList){
+      if(chatting.getUserList().contains(userName)){
+        chatting.deleteUser(userName);
         for(ChatService service:serviceList){
-            userList.add(service.getUserName());
+          if(chatting.getUserList().contains(service.getUserName())){
+            System.out.println(chatting.getChatName()+","+userName);
+            service.quitChat(chatting.getChatId(), userName);
+          }
         }
-        return userList;
+      }
     }
-
-    public void uploadMessage(Message message){
-        for(Chatting chatting : chattingList){
-            if(chatting.getChatId()==message.getSendTo()){
-                for(ChatService service:serviceList){
-                    if(chatting.getUserList().contains(service.getUserName())){
-                        service.downloadMessage(message);
-                    }
-                }
-                return;
-            }
-        }
-    }
-
-    public synchronized void quitChat(String userName){
-        for(Chatting chatting : chattingList){
-            if(chatting.getUserList().contains(userName)){
-                chatting.deleteUser(userName);
-                for(ChatService service:serviceList){
-                    if(chatting.getUserList().contains(service.getUserName())){
-                        System.out.println(chatting.getChatName()+","+userName);
-                        service.quitChat(chatting.getChatId(), userName);
-                    }
-                }
-            }
-        }
-        chattingList.removeIf(chatting -> chatting.getUserList().size() == 0);
-    }
+    chattingList.removeIf(chatting -> chatting.getUserList().size() == 0);
+  }
 }
