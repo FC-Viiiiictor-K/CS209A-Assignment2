@@ -6,7 +6,6 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Scanner;
-import java.util.Set;
 import java.util.TreeSet;
 
 public class ReceiveMessageThread implements Runnable{
@@ -22,8 +21,8 @@ public class ReceiveMessageThread implements Runnable{
     }
     @Override
     public void run() {
-        while(true){
-            if(!sc.hasNext()||socket.isClosed()){
+        while (true) {
+            if (!sc.hasNext() || socket.isClosed()) {
                 return;
             }
             executeCommand(sc.nextLine());

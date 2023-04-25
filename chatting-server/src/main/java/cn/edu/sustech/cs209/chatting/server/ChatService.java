@@ -12,13 +12,14 @@ import java.util.TreeSet;
 
 public class ChatService implements Runnable{
     private final ServerController controller;
-    private final Socket socket;
+    private final Socket socket, heartbeatSocket;
     private volatile String userName;
     private Scanner sc;
     private PrintWriter pw;
-    public ChatService(ServerController controller, Socket socket){
+    public ChatService(ServerController controller, Socket socket, Socket heartbeatSocket){
         this.controller=controller;
         this.socket=socket;
+        this.heartbeatSocket=heartbeatSocket;
         userName="";
     }
 
@@ -32,6 +33,13 @@ public class ChatService implements Runnable{
             try{
                 sc=new Scanner(socket.getInputStream());
                 pw=new PrintWriter(socket.getOutputStream());
+                Thread thread=new Thread(
+                  new HeartbeatThread(
+                    new Scanner(heartbeatSocket.getInputStream()),
+                    new PrintWriter(heartbeatSocket.getOutputStream())
+                  )
+                );
+                thread.start();
                 doService();
             }
             finally {

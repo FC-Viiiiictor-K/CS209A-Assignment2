@@ -2,6 +2,12 @@ package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.Chatting;
 import cn.edu.sustech.cs209.chatting.common.Message;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.net.URL;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -14,13 +20,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import javafx.util.Callback;
-
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.net.Socket;
-import java.net.URL;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class Controller implements Initializable {
     @FXML
@@ -39,23 +38,25 @@ public class Controller implements Initializable {
     ListView<Message> chatContentList;
 
     String userName;
-    private final int port=1453;
-    private volatile Socket socket;
+    private final int port = 1453;
+    private final int port2 = 1454;
+    private volatile Socket socket, heartbeatSocket;
     private volatile Scanner sc;
     private volatile PrintWriter pw;
     private long currentChatId;
-    private int onlineUserCnt=0;
+    private int onlineUserCnt = 0;
     private volatile Set<String> tempUserList;
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        try{
-            socket=new Socket("localhost",port);
-            sc=new Scanner(socket.getInputStream());
-            pw=new PrintWriter(socket.getOutputStream());
+        try {
+            socket = new Socket("localhost", port);
+            heartbeatSocket = new Socket("localhost", port2);
+            sc = new Scanner(socket.getInputStream());
+            pw = new PrintWriter(socket.getOutputStream());
 
             boolean createdUser=false;
-            while(!createdUser) {
+            while (!createdUser) {
                 Dialog<String> dialog = new TextInputDialog();
                 dialog.setTitle("Login");
                 dialog.setHeaderText(null);
@@ -78,7 +79,9 @@ public class Controller implements Initializable {
                         Alert invalidNameAlert = new Alert(Alert.AlertType.WARNING);
                         invalidNameAlert.setTitle("Username already exists");
                         invalidNameAlert.setHeaderText(null);
-                        invalidNameAlert.setContentText("User \"" + tmpName + "\" is already online, please enter another username!");
+                        invalidNameAlert.setContentText("User \""
+                            + tmpName
+                            + "\" is already online, please enter another username!");
                         invalidNameAlert.showAndWait();
                     }
                 } else {
@@ -92,7 +95,7 @@ public class Controller implements Initializable {
 
             pw.println("REFRESH_ONLINE_CNT");
             pw.flush();
-            String inform=sc.nextLine();
+            String inform = sc.nextLine();
             if(inform.equals("SET_ONLINE_CNT")){
                 onlineUserCnt=Integer.parseInt(sc.nextLine());
                 currentOnlineCnt.setText("Online: "+onlineUserCnt);
@@ -101,14 +104,28 @@ public class Controller implements Initializable {
             chatContentList.setCellFactory(new MessageCellFactory());
             chatList.setCellFactory(new ChatCellFactory());
 
-            ReceiveMessageThread receiveMessageThread=new ReceiveMessageThread(this,socket,sc,pw);
-            Thread thread=new Thread(receiveMessageThread);
+            Thread thread=new Thread(new ReceiveMessageThread(this,socket,sc,pw));
             thread.start();
+            Thread thread2=new Thread(new HeartbeatThread(
+              this,
+              new Scanner(heartbeatSocket.getInputStream()),
+              new PrintWriter(heartbeatSocket.getOutputStream())));
+            thread2.start();
         }
         catch (IOException e){
-            Platform.exit();
-            e.printStackTrace();
+            exitDueToServer();
         }
+    }
+    
+    public void exitDueToServer(){
+        Platform.runLater(() -> {
+            Alert invalidNameAlert = new Alert(Alert.AlertType.INFORMATION);
+            invalidNameAlert.setTitle("Server offline");
+            invalidNameAlert.setHeaderText(null);
+            invalidNameAlert.setContentText("Sorry, the server is offline.");
+            invalidNameAlert.showAndWait();
+            Platform.exit();
+        });
     }
 
     public void setOnlineCnt(int onlineCnt){
@@ -160,6 +177,11 @@ public class Controller implements Initializable {
     }
 
     private void displayChatContent(Chatting chatting){
+        for(Chatting chatting1:chatList.getItems()){
+            if(chatting1.getChatId()==chatting.getChatId()){
+                chatting1.setHasNewMessage(false);
+            }
+        }
         chatContentList.getItems().clear();
         chatContentList.getItems().addAll(chatting.getMessageList());
     }
