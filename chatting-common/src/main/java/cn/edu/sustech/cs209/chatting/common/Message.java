@@ -10,13 +10,13 @@ public class Message {
 
     private Long sendTo;
 
-    private String data;
+    private ArrayList<String> messageLines;
 
-    public Message(Long timestamp, String sentBy, Long sendTo, String data) {
+    public Message(Long timestamp, String sentBy, Long sendTo, ArrayList<String> messageLines) {
         this.timestamp = timestamp;
         this.sentBy = sentBy;
         this.sendTo = sendTo;
-        this.data = data;
+        this.messageLines = messageLines;
     }
 
     public Long getTimestamp() {
@@ -31,7 +31,16 @@ public class Message {
         return sendTo;
     }
 
-    public String getData() {
-        return data;
+    public ArrayList<String> getMessageLines() {
+        return messageLines;
+    }
+
+    public String getMessageString(){
+        StringBuilder sb=new StringBuilder();
+        for(String line:messageLines){
+            sb.append(line).append("\n");
+        }
+        sb.delete(sb.length()-1,sb.length());
+        return sb.toString();
     }
 }

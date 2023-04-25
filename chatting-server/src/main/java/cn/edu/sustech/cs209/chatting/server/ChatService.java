@@ -5,6 +5,7 @@ import cn.edu.sustech.cs209.chatting.common.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeSet;
@@ -36,6 +37,7 @@ public class ChatService implements Runnable{
             finally {
                 socket.close();
                 controller.removeChatService(this);
+                controller.refreshOnlineCnt();
             }
         }
         catch(IOException e){
@@ -72,9 +74,12 @@ public class ChatService implements Runnable{
 
     public void executeCommand(String command){
         switch (command) {
+            case "REFRESH_ONLINE_CNT":
+                controller.refreshOnlineCnt();
+                break;
             case "CREATE_CHAT":
                 int listLength=Integer.parseInt(sc.nextLine());
-                Set<String> users=new TreeSet<>();
+                TreeSet<String> users=new TreeSet<>();
                 while(listLength-->0){
                     users.add(sc.nextLine());
                 }
@@ -82,6 +87,7 @@ public class ChatService implements Runnable{
                 break;
             case "GET_USER_LIST":
                 Set<String> userList=controller.getUserList();
+                pw.println("RECEIVE_USER_LIST");
                 pw.println(userList.size());
                 for(String user:userList){
                     pw.println(user);
@@ -91,24 +97,37 @@ public class ChatService implements Runnable{
             case "UPLOAD_MESSAGE":
                 long chatId=Long.parseLong(sc.nextLine());
                 long timeStamp=Long.parseLong(sc.nextLine());
-                String content=sc.nextLine();
-                controller.uploadMessage(new Message(timeStamp,userName,chatId,content));
-                break;
-            case "QUIT_CHAT":
-                chatId=Long.parseLong(sc.nextLine());
-                controller.quitChat(chatId,userName);
+                int lineCnt=Integer.parseInt(sc.nextLine());
+                ArrayList<String> messageLines=new ArrayList<>();
+                while(lineCnt-->0){
+                    messageLines.add(sc.nextLine());
+                }
+                controller.uploadMessage(new Message(timeStamp,userName,chatId,messageLines));
                 break;
         }
     }
 
-    public void downloadMessage(Message message){
-        pw.print("DOWNLOAD_MESSAGE\n"+message.getSentBy()+"\n"+message.getSendTo()+"\n"+message.getTimestamp()+"\n"+message.getData()+"\n");
+    public void setOnlineCnt(int onlineCnt){
+        pw.print("SET_ONLINE_CNT\n"+onlineCnt+"\n");
         pw.flush();
     }
 
-    public void joinChat(Chat chat){
-        pw.print("JOIN_CHAT\n"+chat.getChatId()+"\n"+chat.getUserList().size()+"\n");
-        for(String userName:chat.getUserList()){
+    public void downloadMessage(Message message){
+        pw.print("DOWNLOAD_MESSAGE\n"
+            +message.getSentBy() +"\n"
+            +message.getSendTo() +"\n"
+            +message.getTimestamp()+"\n"
+            +message.getMessageLines().size() +"\n"
+        );
+        for(String line:message.getMessageLines()){
+            pw.println(line);
+        }
+        pw.flush();
+    }
+
+    public void joinChat(Chatting chatting){
+        pw.print("JOIN_CHAT\n"+ chatting.getChatId()+"\n"+ chatting.getUserList().size()+"\n");
+        for(String userName: chatting.getUserList()){
             pw.print(userName+"\n");
         }
         pw.flush();
@@ -116,5 +135,6 @@ public class ChatService implements Runnable{
 
     public void quitChat(long chatId,String userName){
         pw.print("QUIT_CHAT\n"+chatId+"\n"+userName+"\n");
+        pw.flush();
     }
 }

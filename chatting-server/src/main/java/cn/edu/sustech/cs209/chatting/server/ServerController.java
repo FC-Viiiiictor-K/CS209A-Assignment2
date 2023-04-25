@@ -6,6 +6,7 @@ import java.util.*;
 
 /**
  * Console -> Server:
+ * REFRESH_ONLINE_CNT // refresh onlineCnt on all consoles
  * CREATE_USER userName // create the user of the console, this will only automatically happen during opening a console
  *     If userName already exists, the server should return a "CREATE_USER_REJECTED" to the console
  * DELETE_USER userName // delete the user of the console, this will only automatically happen during closing a console
@@ -14,34 +15,40 @@ import java.util.*;
  *     If such chat already exists, the server should return a "CREATE_CHAT_REJECTED" to the console
  *     When this was executed, the server will return "JOIN_CHAT chat" to other users
  * GET_USER_LIST // get a list of current user
- * UPLOAD_MESSAGE chatId timeStamp message // a user sends message to a chat
+ * UPLOAD_MESSAGE chatId timeStamp lineCnt [messageLines] // a user sends message to a chat
  *     When this was executed, the server will return "DOWNLOAD_MESSAGE sendBy chatId message timeStamp" to other users
- * QUIT_CHAT chatId // user quits the chat
- *     When this was executed, the server will return "QUIT_CHAT chat userName" to other users in the chat
- *     If there are no user in a chat, the chat will be deleted
  * --------------------
  * Server -> Console:
+ * SET_ONLINE_CNT onlineCnt // set the counter of number of online users
  * CREATE_USER_REJECTED // the user already exists
- * DOWNLOAD_MESSAGE sendBy chatId timeStamp message // get the message that other user send
+ * DOWNLOAD_MESSAGE sendBy chatId timeStamp lineCnt [messageLines] // get the message that other user send
+ * RECEIVE_USER_LIST listLength [userList] // get the user list
  * JOIN_CHAT chatId listLength [userList] // join a new chat
  * QUIT_CHAT chatId userName // userName quited a chat which the user is in
  */
 public class ServerController {
     private static volatile ArrayList<ChatService> serviceList;
-    private static volatile ArrayList<Chat> chatList;
+    private static volatile ArrayList<Chatting> chattingList;
     private static volatile Random random;
     public ServerController(){
         serviceList=new ArrayList<>();
-        chatList=new ArrayList<>();
+        chattingList =new ArrayList<>();
         random=new Random();
     }
 
-    public void addChatService(ChatService service){
+    public synchronized void addChatService(ChatService service){
         serviceList.add(service);
     }
 
-    public void removeChatService(ChatService service){
+    public synchronized void removeChatService(ChatService service){
         serviceList.remove(service);
+        quitChat(service.getUserName());
+    }
+
+    public void refreshOnlineCnt(){
+        for(ChatService service:serviceList){
+            service.setOnlineCnt(serviceList.size());
+        }
     }
 
     public synchronized boolean existsUser(String userName){
@@ -57,12 +64,12 @@ public class ServerController {
         return false;
     }
 
-    public synchronized void createChat(Set<String> users){
-        Chat newChat=new Chat(random.nextLong(),users);
-        chatList.add(newChat);
+    public synchronized void createChat(TreeSet<String> users){
+        Chatting newChatting =new Chatting(random.nextLong(),users);
+        chattingList.add(newChatting);
         for(ChatService service:serviceList){
             if(users.contains(service.getUserName())){
-                service.joinChat(newChat);
+                service.joinChat(newChatting);
             }
         }
     }
@@ -76,10 +83,10 @@ public class ServerController {
     }
 
     public void uploadMessage(Message message){
-        for(Chat chat:chatList){
-            if(chat.getChatId()==message.getSendTo()){
+        for(Chatting chatting : chattingList){
+            if(chatting.getChatId()==message.getSendTo()){
                 for(ChatService service:serviceList){
-                    if(chat.getUserList().contains(service.getUserName())){
+                    if(chatting.getUserList().contains(service.getUserName())){
                         service.downloadMessage(message);
                     }
                 }
@@ -88,19 +95,18 @@ public class ServerController {
         }
     }
 
-    public void quitChat(long chatId,String userName){
-        for(Chat chat:chatList){
-            if(chat.getChatId()==chatId){
-                chat.deleteUser(userName);
+    public synchronized void quitChat(String userName){
+        for(Chatting chatting : chattingList){
+            if(chatting.getUserList().contains(userName)){
+                chatting.deleteUser(userName);
                 for(ChatService service:serviceList){
-                    if(chat.getUserList().contains(service.getUserName())){
-                        service.quitChat(chatId,userName);
+                    if(chatting.getUserList().contains(service.getUserName())){
+                        System.out.println(chatting.getChatName()+","+userName);
+                        service.quitChat(chatting.getChatId(), userName);
                     }
-                }
-                if(chat.getUserList().size()==0){
-                    chatList.remove(chat);
                 }
             }
         }
+        chattingList.removeIf(chatting -> chatting.getUserList().size() == 0);
     }
 }
